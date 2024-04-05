@@ -3,7 +3,9 @@ from PIL import Image
 import numpy as np
 
 Image.MAX_IMAGE_PIXELS = 100000000
-root_path = 'G://Research/SAA/2D/MapFormer/'
+# root_path = 'G://Research/SAA/2D/MapFormer/'
+root_path = '/home/wei/feng/MapFormer/'
+# root_path = '/home/lab/feng/MapFormer/'
 postTrain_path = root_path + "Data/original_size/train_post/"
 postTestImg_path = root_path + "Data/original_size/test_post/"
 
@@ -46,9 +48,9 @@ def crop_large_image():
         msk_pre_arr = np.array(msk_pre)
         img_pre = Image.open(imgPreTrList[k])
         img_post = Image.open(imgPostTrList[k])
-        # msk_pre_arr[msk_pre_arr != 1] = 0                                       # set all categories as backgroud but building
+        # msk_pre_arr[msk_pre_arr != 1] = 0                      # set all categories as backgroud but building
 
-        i = 0
+        i = 0                                                    # used for keep track the number of cropped file in the same original file
         for row in range(num_rows):
             for col in range(num_cols):
                 left = col * crop_width
@@ -56,30 +58,36 @@ def crop_large_image():
                 right = left + crop_width
                 lower = upper + crop_height
 
-                cropped_msk_post_arr = msk_post_arr[upper:lower, left:right]
-                if np.max(cropped_msk_post_arr) == 0:          # if no change in this cropping
+                # use to filter no change out
+                cropped_msk_post_arr = msk_post_arr[upper:lower, left:right] * msk_pre_arr[upper:lower, left:right]
+                if np.max(cropped_msk_post_arr) == 0:          # if no change in building in this cropping
                     continue
 
                 # if no building change in this cropping
-                cropped_msk_pre_arr = msk_pre_arr[upper:lower, left:right]
+                # cropped_msk_pre_arr = msk_pre_arr[upper:lower, left:right]
                 # cropped_msk_post_arr = cropped_msk_pre_arr * cropped_msk_post_arr
-                if np.max(cropped_msk_post_arr) == 0:
-                    continue
-                else:
-                    cropped_msk_pre = Image.fromarray(cropped_msk_pre_arr)
-                    cropped_msk_post = Image.fromarray(cropped_msk_post_arr)
+                # enable this part of code if you need to balance the data set
+                # if np.max(cropped_msk_post_arr) == 0:
+                #     continue
+                # else:
+                #     cropped_msk_pre = Image.fromarray(cropped_msk_pre_arr)
+                #     cropped_msk_post = Image.fromarray(cropped_msk_post_arr)
 
+                # cropped_msk_pre = Image.fromarray(cropped_msk_pre_arr)
+                # cropped_msk_post = Image.fromarray(cropped_msk_post_arr)
+                cropped_msk_post = msk_post.crop((left, upper, right, lower))
+                cropped_msk_pre = msk_pre.crop((left, upper, right, lower))
                 cropped_img_post = img_post.crop((left, upper, right, lower))
                 cropped_img_pre = img_pre.crop((left, upper, right, lower))
 
                 cropped_img_pre_filename = imgPreTrList[k].replace('original_size', 'cropped_data').replace('.tif', '_'+str(i)+'.tif')
-                cropped_img_pre.save(cropped_img_pre_filename)
+                cropped_img_pre.save(cropped_img_pre_filename, compression="tiff_deflate")
                 cropped_img_post_filename = imgPostTrList[k].replace('original_size', 'cropped_data').replace('.tif', '_'+str(i)+'.tif')
-                cropped_img_post.save(cropped_img_post_filename)
+                cropped_img_post.save(cropped_img_post_filename, compression="tiff_deflate")
                 cropped_msk_pre_filename = mskPreTrList[k].replace('original_size', 'cropped_data').replace('.tif', '_'+str(i)+'.tif')
-                cropped_msk_pre.save(cropped_msk_pre_filename)
+                cropped_msk_pre.save(cropped_msk_pre_filename, compression="tiff_deflate")
                 cropped_msk_post_filename = mskPostTrList[k].replace('original_size', 'cropped_data').replace('.tif', '_'+str(i)+'.tif')
-                cropped_msk_post.save(cropped_msk_post_filename)
+                cropped_msk_post.save(cropped_msk_post_filename, compression="tiff_deflate")
 
                 i += 1
 
@@ -91,7 +99,7 @@ def crop_large_image():
         msk_pre_arr = np.array(msk_pre)
         img_pre = Image.open(imgPreTstList[k])
         img_post = Image.open(imgPostTstList[k])
-        msk_pre_arr[msk_pre_arr != 1] = 0  # set all categories as backgroud but building
+        # msk_pre_arr[msk_pre_arr != 1] = 0                     # set all categories as backgroud but building
 
         i = 0
         for row in range(num_rows):
@@ -101,31 +109,36 @@ def crop_large_image():
                 right = left + crop_width
                 lower = upper + crop_height
 
-                if np.max(msk_post_arr[upper:lower, left:right]) == 0:          # if no change in this cropping
+                # use to filter no change out
+                cropped_msk_post_arr = msk_post_arr[upper:lower, left:right] * msk_pre_arr[upper:lower, left:right]
+                if np.max(cropped_msk_post_arr) == 0:          # if no change in building in this cropping
                     continue
-                else:
-                    cropped_msk_post_arr = msk_post_arr[upper:lower, left:right]
 
                 # if no building change in this cropping
-                cropped_msk_pre_arr = msk_pre_arr[upper:lower, left:right]
-                cropped_msk_post_arr = cropped_msk_pre_arr * cropped_msk_post_arr
-                if np.max(cropped_msk_post_arr) == 0:
-                    continue
-                else:
-                    cropped_msk_pre = Image.fromarray(cropped_msk_pre_arr)
-                    cropped_msk_post = Image.fromarray(cropped_msk_post_arr)
+                # cropped_msk_pre_arr = msk_pre_arr[upper:lower, left:right]
+                # cropped_msk_post_arr = cropped_msk_pre_arr * cropped_msk_post_arr
+                # if np.max(cropped_msk_post_arr) == 0:
+                #     continue
+                # else:
+                #     cropped_msk_pre = Image.fromarray(cropped_msk_pre_arr)
+                #     cropped_msk_post = Image.fromarray(cropped_msk_post_arr)
 
+                # cropped_msk_pre = Image.fromarray(cropped_msk_pre_arr)
+                # cropped_msk_post = Image.fromarray(cropped_msk_post_arr)
+                cropped_msk_post = msk_post.crop((left, upper, right, lower))
+                cropped_msk_pre = msk_pre.crop((left, upper, right, lower))
                 cropped_img_post = img_post.crop((left, upper, right, lower))
                 cropped_img_pre = img_pre.crop((left, upper, right, lower))
 
                 cropped_img_pre_filename = imgPreTstList[k].replace('original_size', 'cropped_data').replace('.tif','_' + str(i) + '.tif')
-                cropped_img_pre.save(cropped_img_pre_filename)
+                cropped_img_pre.save(cropped_img_pre_filename, compression="tiff_deflate")
                 cropped_img_post_filename = imgPostTstList[k].replace('original_size', 'cropped_data').replace('.tif','_' + str(i) + '.tif')
-                cropped_img_post.save(cropped_img_post_filename)
+                cropped_img_post.save(cropped_img_post_filename, compression="tiff_deflate")
                 cropped_msk_pre_filename = mskPreTstList[k].replace('original_size', 'cropped_data').replace('.tif','_' + str(i) + '.tif')
-                cropped_msk_pre.save(cropped_msk_pre_filename)
+                cropped_msk_pre.save(cropped_msk_pre_filename, compression="tiff_deflate")
                 cropped_msk_post_filename = mskPostTstList[k].replace('original_size', 'cropped_data').replace('.tif','_' + str(i) + '.tif')
-                cropped_msk_post.save(cropped_msk_post_filename)
+                cropped_msk_post.save(cropped_msk_post_filename, compression="tiff_deflate")
+
 
                 i += 1
 

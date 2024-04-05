@@ -3,7 +3,8 @@ from PIL import Image, ImageOps
 import numpy as np
 
 Image.MAX_IMAGE_PIXELS = 100000000
-root_path = 'G://Research/SAA/2D/MapFormer/'
+# root_path = 'G://Research/SAA/2D/MapFormer/'
+root_path = '/home/lab/feng/MapFormer/'
 postTrain_path = root_path + "Data/original_size/train_post/"
 postTestImg_path = root_path + "Data/original_size/test_post/"
 
@@ -31,7 +32,7 @@ def crop_large_image():
         msk_pre_arr[msk_pre_arr != 1] = 0
         cropped_msk_post_arr = cropped_msk_pre_arr * cropped_msk_post_arr
     """
-    crop_size = (2048, 2048)
+    crop_size = (256, 256)
     original_size = (10000, 10000)
     width, height = original_size
     crop_width, crop_height = crop_size
@@ -42,7 +43,7 @@ def crop_large_image():
     n_trImg = len(imgPreTrList)
     for k in tqdm.tqdm(range(n_trImg)):
         msk_post = Image.open(mskPostTrList[k])
-        # msk_post_arr = np.array(msk_post)
+        msk_post_arr = np.array(msk_post)
         msk_pre = Image.open(mskPreTrList[k])
         # msk_pre_arr = np.array(msk_pre)
         img_pre = Image.open(imgPreTrList[k])
@@ -82,8 +83,6 @@ def crop_large_image():
                 if last_row:
                     lower = height
 
-                print(msk_pre.size, left, upper, right, lower, sep='\t')
-
                 cropped_img_post = img_post.crop((left, upper, right, lower))
                 cropped_img_pre = img_pre.crop((left, upper, right, lower))
                 cropped_msk_post = msk_post.crop((left, upper, right, lower))
@@ -111,7 +110,7 @@ def crop_large_image():
     n_tstImg = len(imgPreTstList)
     for k in tqdm.tqdm(range(n_tstImg)):
         msk_post = Image.open(mskPostTstList[k])
-        # msk_post_arr = np.array(msk_post)
+        msk_post_arr = np.array(msk_post)
         msk_pre = Image.open(mskPreTstList[k])
         # msk_pre_arr = np.array(msk_pre)
         img_pre = Image.open(imgPreTstList[k])
