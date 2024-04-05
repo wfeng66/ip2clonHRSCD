@@ -22,27 +22,31 @@ import segmentation_models_pytorch.utils as utils
 # import albumentations as album
 
 Image.MAX_IMAGE_PIXELS = 100000000
-
+IMAGE_SIZE = 256
+IN_CHANNELS = 6
 
 # DATA_DIR = '/content/gdrive/MyDrive/PhD/SAA/MapFormer'
-DATA_DIR = '/home/lab/feng/MapFormer/Data'
-# DATA_DIR = 'G://Research/SAA/2D/MapFormer/Data'
+# DATA_DIR = '/home/lab/feng/MapFormer/Data/cropped_data'
+# DATA_DIR = '/home/lab/feng/MapFormer/Data/original_size'
+# DATA_DIR = 'G://Research/SAA/2D/MapFormer/Data/cropped_data'
+DATA_DIR = '/home/wei/feng/MapFormer/Data/cropped_data'
 
-x_train_post_dir = os.path.join(DATA_DIR, 'cropped_data/train_post/images')
-x_train_pre_dir = os.path.join(DATA_DIR, 'cropped_data/train_pre/images')
-y_train_post_dir = os.path.join(DATA_DIR, 'cropped_data/train_post/targets')
-y_train_pre_dir = os.path.join(DATA_DIR, 'cropped_data/train_pre/targets')
+x_train_post_dir = os.path.join(DATA_DIR, 'train_post/images')
+x_train_pre_dir = os.path.join(DATA_DIR, 'train_pre/images')
+y_train_post_dir = os.path.join(DATA_DIR, 'train_post/targets')
+y_train_pre_dir = os.path.join(DATA_DIR, 'train_pre/targets')
 
-x_test_post_dir = os.path.join(DATA_DIR, 'cropped_data/test_post/images')
-x_test_pre_dir = os.path.join(DATA_DIR, 'cropped_data/test_pre/images')
-y_test_post_dir = os.path.join(DATA_DIR, 'cropped_data/test_post/targets')
-y_test_pre_dir = os.path.join(DATA_DIR, 'cropped_data/test_pre/targets')
+x_test_post_dir = os.path.join(DATA_DIR, 'test_post/images')
+x_test_pre_dir = os.path.join(DATA_DIR, 'test_pre/images')
+y_test_post_dir = os.path.join(DATA_DIR, 'test_post/targets')
+y_test_pre_dir = os.path.join(DATA_DIR, 'test_pre/targets')
 
 
 # Get class names
 class_names = ['no change', 'change']
 # Get class RGB values
-class_rgb_values = [[0, 0, 0], [255, 255, 255]]
+# class_rgb_values = [[0, 0, 0], [255, 255, 255]]
+class_rgb_values = [[0, 0, 0], [1, 1, 1]]
 
 # Useful to shortlist specific classes in datasets with large number of classes
 select_classes = ['no change', 'change']
@@ -109,14 +113,15 @@ def colour_code_segmentation(image, label_values):
 
 def diff(img1, img2, msk_pre):
     msk_pre3d = np.zeros_like(img1)
+    msk_pre[msk_pre>1] = 1                  # make sure there isn't any mask pixels > 1 when involving all object in maks_pre
     for i in range(3):
         msk_pre3d[:, :, i] = msk_pre[:, :]
     # msk_pre3d = np.stack((msk_pre, msk_pre, msk_pre), -3)
-    # return img1 - img2*msk_pre3d          # non-normalization version
+    return img1 - img2*msk_pre3d          # non-normalization version
     # Normalization version
-    Z0 = img1 - img1*msk_pre3d    # background
-    Z1 = (img1-img2)*msk_pre3d    # foreground
-    return Z1.astype(np.uint8)      # only keep the TOI
+    # Z0 = img1 - img1*msk_pre3d    # background
+    # Z1 = (img1-img2)*msk_pre3d    # foreground
+    # return Z1.astype(np.uint8)      # only keep the TOI
     """
     nonzero_values = Z1[Z1 != 0]
     max_value = np.max(nonzero_values)
@@ -133,9 +138,15 @@ def diff(img1, img2, msk_pre):
     for i in range(3):
         msk_pre3d[:, :, i] = msk_pre[:, :]
     return img1 - img2*msk_pre3d          # non-normalization version
-
-
-
+    # Normalization version
+    Z0 = img1 - img1*msk_pre3d    # background
+    Z1 = (img1-img2)*msk_pre3d    # foreground
+    nonzero_values = Z1[Z1 != 0]
+    max_value = np.max(nonzero_values)
+    min_value = np.min(nonzero_values)
+    Z1_normalized = (Z1 - min_value)/ (max_value - min_value)
+    Z1_normalized[Z1 == 0] = 0    # set background to zero
+    return (Z0 + Z1_normalized).astype(np.uint8)
 
 
 
@@ -196,20 +207,21 @@ class BuildingsDataset(torch.utils.data.Dataset):
         image_post = cv2.cvtColor(cv2.imread(self.image_post_paths[i]), cv2.COLOR_BGR2RGB)
         mask_pre = np.array(Image.open(self.mask_pre_paths[i]), dtype=np.uint8)
         mask_post = np.array(Image.open(self.mask_post_paths[i]), dtype=np.uint8)
+        image = np.concatenate((image_pre, image_post), axis= -1)
 
-        image = diff(image_post, image_pre, mask_pre)           # ip2cl
-        # image = np.stack((image_pre, image), axis=-1).reshape((256,256, -1))          # combine image_pre
+        # image = diff(image_post, image_pre, mask_pre)           # ip2cl
+        # image = np.stack((image_pre, image), axis=-1).reshape((IMAGE_SIZE,IMAGE_SIZE, -1))          # combine image_pre
         # concatenate mask_pre with ip2cl
-        mask_pre = np.expand_dims(mask_pre, axis=-1)
-        mask_pre = np.repeat(mask_pre, 3, axis=-1)
-        image = np.stack((mask_pre, image), axis=-1).reshape((256,256, -1))
+        # mask_pre = np.expand_dims(mask_pre, axis=-1)
+        # mask_pre = np.repeat(mask_pre, 3, axis=-1)
+        # image = np.stack((mask_pre, image), axis=-1).reshape((IMAGE_SIZE,IMAGE_SIZE, -1))
 
         mask_post = one_hot(mask_post)
 
         trans = T.Compose([T.ToTensor()])
 
         image = trans(image)
-        mask_post = trans(mask_post.transpose((1, 2, 0)))
+        # mask_post = trans(mask_post.transpose((1, 2, 0)))
 
         return image, mask_post
 
@@ -298,7 +310,7 @@ class UNet(nn.Module):
 
 
 # Get UNet model
-model = UNet(in_channnels=6)        # if only train a standard ip2cl, get rid of the parameter
+model = UNet(in_channnels=IN_CHANNELS)        # if only train a standard ip2cl, get rid of the parameter
 
 
 # Get train and val dataset instances
@@ -323,7 +335,7 @@ valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False, num_worker
 TRAINING = True
 
 # Set num of epochs
-EPOCHS = 200
+EPOCHS = 10
 
 # Set device: `cuda` or `cpu`
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -332,8 +344,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
-from torchvision.models.segmentation import deeplabv3_resnet101
+# from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+# from torchvision.models.segmentation import deeplabv3_resnet101
 
 # Set device: `cuda` or `cpu`
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -397,15 +409,123 @@ loss = FocalLoss(alpha=1, gamma=2, reduction='mean')
 loss.__name__ = 'FocalLoss'
 
 # Define metrics
-from torchmetrics import F1Score, Accuracy, Precision, Recall
+from torchmetrics import F1Score, Accuracy, Precision, Recall, Metric, JaccardIndex
+
+
+def custom_f1_score(y_true, y_pred):
+    true_positive = torch.sum(y_true * y_pred, dim=(1, 2)).float()
+    false_positive = torch.sum((1 - y_true) * y_pred, dim=(1, 2)).float()
+    false_negative = torch.sum(y_true * (1 - y_pred), dim=(1, 2)).float()
+
+    precision = true_positive / (true_positive + false_positive + 1e-8)  # Add small epsilon to avoid division by zero
+    recall = true_positive / (true_positive + false_negative + 1e-8)
+
+    f1_score = 2 * (precision * recall) / (precision + recall + 1e-8)  # Add small epsilon to avoid division by zero
+
+    return f1_score
+
+
+class CustomAvgF1Score(Metric):
+    def __init__(self):
+        super().__init__()
+        self.add_state("no_change_f1", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("change_f1", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("count", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, y_true, y_pred):
+        no_change_f1 = custom_f1_score(y_true[:, 0, :, :], y_pred[:, 0, :, :])
+        change_f1 = custom_f1_score(y_true[:, 1, :, :], y_pred[:, 1, :, :])
+        self.no_change_f1 += no_change_f1.sum()
+        self.change_f1 += change_f1.sum()
+        self.count += y_true.size(0)
+
+    def compute(self):
+        avg_f1_score = (self.no_change_f1 + self.change_f1) / (2.0 * self.count)
+        return avg_f1_score
+
+
+def intersection_over_union(predicted, target, class_idx):
+    intersection = torch.logical_and(predicted == class_idx, target == class_idx).sum().item()
+    union = torch.logical_or(predicted == class_idx, target == class_idx).sum().item()
+    iou = intersection / union if union != 0 else 0
+    return iou
+
+
+class CustomIoU(Metric):
+    def __init__(self, class_indices, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        self.class_indices = class_indices
+        self.add_state("iou_sum", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("count", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, predicted, target):
+        for class_idx in self.class_indices:
+            intersection = torch.logical_and(predicted == class_idx, target == class_idx).sum().item()
+            union = torch.logical_or(predicted == class_idx, target == class_idx).sum().item()
+            iou = intersection / union if union != 0 else 0
+            self.iou_sum += iou
+            self.count += 1
+
+    def compute(self):
+        average_iou = self.iou_sum / self.count if self.count != 0 else 0
+        return average_iou
+
+# class CustomAvgF1Score:
+#     def __init__(self):
+#         self.f1_score_class_0 = F1Score(num_classes=2, average=None, task='binary')
+#         self.f1_score_class_1 = F1Score(num_classes=2, average=None, task='binary')
+#
+#     def update(self, y_true, y_pred):
+#         # Calculate F1 score separately for each class
+#         self.f1_score_class_0.update(y_true[:, 0, :, :], y_pred[:, 0, :, :])
+#         self.f1_score_class_1.update(y_true[:, 1, :, :], y_pred[:, 1, :, :])
+#         # Get F1 scores for each class
+#         self.f1_class_0 = self.f1_score_class_0.compute()[1]  # F1 score for class 0
+#         self.f1_class_1 = self.f1_score_class_1.compute()[1]  # F1 score for class 1
+#
+#
+#     def compute(self):
+#         # Compute average F1 score
+#         avg_f1_score = (self.f1_class_0 + self.f1_class_1) / 2.0
+#         return avg_f1_score
+#
+#     def to(self, device):
+#         self.f1_score_class_0.to(device)
+#         self.f1_score_class_1.to(device)
+
+# class CustomAvgF1Score:
+#     def __init__(self):
+#         self.f1_score_class_0 = F1Score(num_classes=2, average=None, task='binary')
+#         self.f1_score_class_1 = F1Score(num_classes=2, average=None, task='binary')
+#
+#     def __call__(self, y_pred, y_true):
+#         # Calculate F1 score separately for each class
+#         self.f1_score_class_0.update(y_true[:, 0, :, :], y_pred[:, 0, :, :])
+#         self.f1_score_class_1.update(y_true[:, 1, :, :], y_pred[:, 1, :, :])
+#
+#         # Compute average F1 score
+#         f1_class_0 = self.f1_score_class_0.compute()[1]  # F1 score for class 0
+#         f1_class_1 = self.f1_score_class_1.compute()[1]  # F1 score for class 1
+#         avg_f1_score = (f1_class_0 + f1_class_1) / 2.0
+#
+#         return avg_f1_score
+#
+#     def to(self, device):
+#         self.f1_score_class_0.to(device)
+#         self.f1_score_class_1.to(device)
+
 
 # Define metrics
 # iou_score = IoU(num_classes=2)  # Assuming binary segmentation
-fscore = F1Score(num_classes=2, task="binary")  # Assuming binary classification
-accuracy = Accuracy(num_classes=2, task="binary")  # Assuming binary classification
-precision = Precision(num_classes=2, task="binary")  # Assuming binary classification
-recall = Recall(num_classes=2, task="binary")  # Assuming binary classification
+fscore = F1Score(num_classes=2, average='macro', task='binary')  # Assuming binary classification
+iou_score = JaccardIndex(num_classes=2, task='binary')
+# iou_score = CustomIoU(class_indices=[0, 1])
+# fscore = CustomAvgF1Score()
+accuracy = Accuracy(num_classes=2, task='binary')  # Assuming binary classification
+precision = Precision(num_classes=2, task='binary')  # Assuming binary classification
+recall = Recall(num_classes=2, task='binary')  # Assuming binary classification
 
+iou_score.__name__ = "IoU"
 fscore.__name__ = 'F1Score'
 accuracy.__name__ = 'Accuracy'
 precision.__name__ = 'Precision'
@@ -413,11 +533,11 @@ recall.__name__ = 'Recall'
 
 
 metrics = [
-    # iou_score,
+    iou_score,
     fscore,
-    accuracy,
-    precision,
-    recall
+    # accuracy,
+    # precision,
+    # recall
 ]
 
 
